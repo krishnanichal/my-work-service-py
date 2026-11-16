@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python REST API",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--reload", "--port", "8080", "--no-access-log"],
+      "envFile": "${workspaceFolder}/.env",
+      "subProcess": true,
+      "justMyCode": true
+    }
+  ]
+}

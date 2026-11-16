@@ -1,0 +1,47 @@
+name: Python quality checks
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          version: "0.11.15"
+          enable-cache: true
+      - name: Install Python
+        run: uv python install
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+      - name: Check formatting and lint
+        run: |
+          uv run --locked ruff format --check .
+          uv run --locked ruff check .
+      - name: Type check
+        run: uv run --locked mypy
+      - name: Test with coverage
+        run: uv run --locked pytest --cov=app --cov-report=term-missing
+      - name: Run static security analysis
+        run: uv run --locked bandit -r src
+      - name: Audit locked dependencies
+        run: |
+          uv export --locked --all-groups --no-emit-project --output-file "$RUNNER_TEMP/locked-requirements.txt"
+          uv run --locked pip-audit --strict --requirement "$RUNNER_TEMP/locked-requirements.txt" --require-hashes --disable-pip
