@@ -70,6 +70,20 @@ Application errors use `application/problem+json` with `message`, `status`, and 
 
 The documented startup command and VS Code launch configuration disable Uvicorn's server banner and access log. The application emits structured JSON with severity, request method, route template, status, duration, and request ID. Requests without a matched API route use `unmatched`. Unexpected request failures record an error type and request ID. Raw URLs, query strings, headers, request bodies, and exception messages stay out of these application request logs. Cloud Run collects its own request logs separately.
 
+### Cloud Run dev database settings
+
+In Secret Manager, add a version of the existing `app-secrets-dev` bundle with one new entry and preserve its other keys. Use the runtime password you set for `work_api_dev_runtime` and percent-encode special characters in it. The entry for the Work API has this shape within the larger JSON object.
+
+```json
+{
+  "WORK_API_DATABASE_URL": "postgresql://work_api_dev_runtime:<URL_ENCODED_RUNTIME_PASSWORD>@<VM_INTERNAL_IP>:5432/app_db_work_dev"
+}
+```
+
+During the first dev rollout, map the secret to `APP_SECRETS` with `--update-secrets="APP_SECRETS=app-secrets-dev:latest"`. Use the `cloudrun-runtime-dev` service identity, set `APP_ENV=dev` and `APP_ALLOWED_HOSTS` for the service hostnames, and attach Direct VPC egress to reach the VM. Coordinate Cloud Run environment settings with Terraform before the rollout so a later infrastructure apply preserves the mapping. [Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets)
+
+When `APP_SECRETS` is present, the API selects `WORK_API_DATABASE_URL` from the bundle and validates the runtime login and database against `APP_ENV`. Otherwise, it uses `APP_DATABASE_URL` for local development. Alembic always uses its own `APP_DATABASE_URL`. Keep the migration credential separate from the bundle mounted into the API.
+
 ## Development workflow
 
 Branch from `develop` for each feature and review the diff and local results before committing. Open the feature PR into `develop`. PRs targeting `develop` or `main`, and pushes to either branch, run the quality checks. The planned Cloud Run targets are `api-work-dev` from `develop` and `api-work-prd` from `main`, with local and dev validation before production promotion.

@@ -1,3 +1,5 @@
+import json
+import os
 from enum import StrEnum
 from functools import lru_cache
 from typing import Literal, Self
@@ -7,7 +9,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
-from app.constants import DEFAULT_MAX_REQUEST_BODY_BYTES
+from app.constants import (
+    APP_SECRETS_ENV,
+    DATABASE_IDENTITY_QUERY_ARGS,
+    DEFAULT_MAX_REQUEST_BODY_BYTES,
+    WORK_API_DATABASE_URL_KEY,
+)
 
 
 class Environment(StrEnum):
@@ -43,6 +50,43 @@ class Settings(DatabaseSettings):
     allowed_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     cors_origins: list[str] = Field(default_factory=list)
     max_request_body_bytes: int = Field(default=DEFAULT_MAX_REQUEST_BODY_BYTES, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_runtime_bundle(cls, data: object) -> object:
+        raw_bundle = os.environ.get(APP_SECRETS_ENV)
+        if raw_bundle is None or not isinstance(data, dict):
+            return data
+
+        try:
+            bundle = json.loads(raw_bundle)
+        except json.JSONDecodeError, RecursionError:
+            raise ValueError(f"{APP_SECRETS_ENV} must be a JSON object") from None
+        if not isinstance(bundle, dict):
+            raise ValueError(f"{APP_SECRETS_ENV} must be a JSON object")
+
+        database_url = bundle.get(WORK_API_DATABASE_URL_KEY)
+        if not isinstance(database_url, str) or not database_url.strip():
+            raise ValueError(f"{APP_SECRETS_ENV} requires a nonempty {WORK_API_DATABASE_URL_KEY}")
+
+        return {**data, "database_url": SecretStr(database_url)}
+
+    @model_validator(mode="after")
+    def validate_bundled_database_role(self) -> Self:
+        if APP_SECRETS_ENV in os.environ and self.database_url is not None:
+            url = make_url(self.database_url.get_secret_value())
+            if (
+                url.username != f"work_api_{self.env}_runtime"
+                or url.database != f"app_db_work_{self.env}"
+                or not url.host
+                or not url.password
+                or not DATABASE_IDENTITY_QUERY_ARGS.isdisjoint(url.query)
+            ):
+                raise ValueError(
+                    f"{WORK_API_DATABASE_URL_KEY} must use the Work API runtime login and "
+                    "database for APP_ENV"
+                )
+        return self
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> Self:

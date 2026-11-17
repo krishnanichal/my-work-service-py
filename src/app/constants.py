@@ -38,3 +38,6 @@ PROBLEM_MEDIA_TYPE: Final = "application/problem+json"
 PROBLEM_RESPONSE_HEADERS: Final = frozenset({"allow", "retry-after", "www-authenticate"})
 UNMATCHED_ROUTE: Final = "unmatched"
 DEFAULT_MAX_REQUEST_BODY_BYTES: Final = 1_048_576
+APP_SECRETS_ENV: Final = "APP_SECRETS"
+WORK_API_DATABASE_URL_KEY: Final = "WORK_API_DATABASE_URL"
+DATABASE_IDENTITY_QUERY_ARGS: Final = frozenset({"user", "database", "password", "dsn"})
