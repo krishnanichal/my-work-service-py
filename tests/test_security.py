@@ -3,7 +3,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError
 
 from app.app_factory import create_app
 from app.core.config import Environment, Settings
@@ -37,7 +37,13 @@ def test_production_requires_explicit_hosts(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_production_requires_an_allowed_host_and_hides_docs() -> None:
-    app = create_app(Settings(env=Environment.PRD, allowed_hosts=["work.example.test"]))
+    app = create_app(
+        Settings(
+            env=Environment.PRD,
+            allowed_hosts=["work.example.test"],
+            database_url=SecretStr("postgresql://test@127.0.0.1/work_service_test"),
+        )
+    )
     with TestClient(app, base_url="https://work.example.test") as client:
         assert client.get("/health/live").status_code == 200
         assert client.get("/health/live", headers={"Host": "other.example.test"}).status_code == 400

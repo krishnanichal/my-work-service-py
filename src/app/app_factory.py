@@ -11,15 +11,23 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware, RequestSizeLimitMiddleware
 from app.health import router as health_router
+from app.infrastructure.database import Database
+from app.modules.users.router import router as users_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or get_settings()
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         configure_logging(config.log_level, config.env.value)
-        yield
+        database = Database(config.database_url) if config.database_url is not None else None
+        application.state.database = database
+        try:
+            yield
+        finally:
+            if database is not None:
+                await database.close()
 
     production = config.env is Environment.PRD
     app = FastAPI(
@@ -33,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = config
     app.include_router(health_router)
+    app.include_router(users_router)
     register_exception_handlers(app)
     app.add_middleware(RequestSizeLimitMiddleware, max_body_bytes=config.max_request_body_bytes)
     if config.cors_origins:

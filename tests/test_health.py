@@ -3,6 +3,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from app.app_factory import create_app
+from app.core.config import Settings
 from app.main import app
 
 
@@ -33,3 +35,16 @@ def test_unsupported_method_preserves_allow_header() -> None:
     assert response.headers["content-type"] == "application/problem+json"
     assert response.json()["code"] == "method_not_allowed"
     assert response.json()["request_id"] == response.headers["x-request-id"]
+
+
+def test_liveness_and_readiness_are_independent_without_a_database() -> None:
+    application = create_app(Settings(database_url=None))
+    with TestClient(application, base_url="http://localhost") as client:
+        assert client.get("/health/live").status_code == 200
+        readiness = client.get("/health/ready")
+        unavailable = client.get("/api/v1/users")
+
+    assert readiness.status_code == 503
+    assert readiness.json() == {"status": "not_ready"}
+    assert unavailable.status_code == 503
+    assert unavailable.json()["code"] == "database_unavailable"

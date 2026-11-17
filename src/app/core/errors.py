@@ -12,6 +12,14 @@ from app.constants import PROBLEM_MEDIA_TYPE, REQUEST_ID_HEADER
 logger = logging.getLogger(__name__)
 
 
+class AppError(Exception):
+    def __init__(self, status: HTTPStatus, code: str, detail: str) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.code = code
+        self.detail = detail
+
+
 def problem_response(
     request: Request,
     status: HTTPStatus,
@@ -37,6 +45,10 @@ def problem_response(
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def handle_app_error(request: Request, error: AppError) -> JSONResponse:
+        return problem_response(request, error.status, error.code, error.detail)
+
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(request: Request, _: RequestValidationError) -> JSONResponse:
         return problem_response(

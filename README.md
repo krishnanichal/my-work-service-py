@@ -1,6 +1,6 @@
 # my-work-service-py
 
-A modular FastAPI service for My Work. The first business feature is a user directory with a unique handle and display name for each user.
+A modular FastAPI service for My Work. It stores user profiles with a unique handle and a display name in PostgreSQL.
 
 ## Run locally
 
@@ -10,10 +10,28 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run 
 uv python install
 uv sync --locked --all-groups
 cp -n .env.example .env
+```
+
+Start PostgreSQL using `./local/compose up --wait` from the local `my-cloud-hub` checkout. In the service's `.env`, set `APP_DATABASE_URL` to the Work database using your local credentials. The template uses `127.0.0.1:15433/app_db_work_dev` for this setup. Percent-encode special characters in the URL password. Then apply the migration and start the API from this repo.
+
+```sh
+uv run --locked --env-file .env alembic upgrade head
 uv run --locked --env-file .env uvicorn app.main:app --reload --port 8080 --no-access-log
 ```
 
-Send `GET /health/live` to `http://127.0.0.1:8080`. The service returns `{"status":"alive"}`. Local API docs are available at `/docs`.
+Open `http://127.0.0.1:8080/docs` for the dev API documentation. `GET /health/live` checks the process. `GET /health/ready` returns `503` until the service can read the migrated Users table.
+
+## Users API
+
+| Method and path | Behavior |
+| --- | --- |
+| `POST /api/v1/users` | Create a profile using `handle` and `display_name`. |
+| `GET /api/v1/users?limit=20&offset=0` | List profiles ordered by creation time and ID, with a total count. The maximum page size is 100. |
+| `GET /api/v1/users/{user_id}` | Fetch a profile by UUID. |
+| `PATCH /api/v1/users/{user_id}` | Change its display name. |
+| `DELETE /api/v1/users/{user_id}` | Delete it and return `204`. |
+
+Handles are stored in lowercase. A duplicate handle returns `409` even when its case differs. Each profile contains `id`, `handle`, `display_name`, and `created_at`. Before a dev rollout, restrict access to approved callers through Cloud Run IAM.
 
 ## Configuration and errors
 
@@ -27,8 +45,10 @@ Branch from `develop` for each feature and review the diff and local results bef
 uv run --locked ruff format --check .
 uv run --locked ruff check .
 uv run --locked mypy
-uv run --locked pytest --cov=app --cov-report=term-missing
-uv run --locked bandit -r src
+uv run --locked pytest -m 'not integration'
+uv run --locked bandit -r src alembic
 uv export --locked --all-groups --no-emit-project --output-file /tmp/my-work-service-py-requirements.txt
 uv run --locked pip-audit --strict --requirement /tmp/my-work-service-py-requirements.txt --require-hashes --disable-pip
 ```
+
+The full suite runs Alembic and exercises the Users API against PostgreSQL. Set `TEST_DATABASE_URL` to a disposable `work_service_test` database and run `uv run --locked pytest --cov=app --cov-report=term-missing`. GitHub Actions provisions this database for each run.
