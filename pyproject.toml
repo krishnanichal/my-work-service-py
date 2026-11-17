@@ -32,7 +32,7 @@ dev = [
 packages = ["src/app"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/api"]
 addopts = "-ra --strict-markers"
 markers = [
     "regression: reproduces a previously fixed defect",
@@ -42,6 +42,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
+relative_files = true
 source = ["app"]
 
 [tool.coverage.report]

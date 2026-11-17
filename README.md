@@ -45,10 +45,21 @@ Branch from `develop` for each feature and review the diff and local results bef
 uv run --locked ruff format --check .
 uv run --locked ruff check .
 uv run --locked mypy
-uv run --locked pytest -m 'not integration'
+uv run --locked pytest
 uv run --locked bandit -r src alembic
 uv export --locked --all-groups --no-emit-project --output-file /tmp/my-work-service-py-requirements.txt
 uv run --locked pip-audit --strict --requirement /tmp/my-work-service-py-requirements.txt --require-hashes --disable-pip
 ```
 
-The full suite runs Alembic and exercises the Users API against PostgreSQL. Set `TEST_DATABASE_URL` to a disposable `work_service_test` database and run `uv run --locked pytest --cov=app --cov-report=term-missing`. GitHub Actions provisions this database for each run.
+### Test suites
+
+`tests/unit` covers isolated Python logic such as settings validation. `tests/api` exercises the FastAPI routes and middleware in-process. Both suites run by default in pytest and VS Code and require no PostgreSQL server.
+
+`tests/integration` runs Alembic and exercises the Users API against PostgreSQL. Set `TEST_DATABASE_URL` to a disposable PostgreSQL database named `work_service_test` before running the integration suite or the full suite with coverage.
+
+```sh
+uv run --locked pytest tests/integration
+uv run --locked pytest tests --cov --cov-report=term-missing
+```
+
+GitHub Actions runs unit and API tests in `verify`, then provisions PostgreSQL for `integration`. It enforces the 80% coverage threshold on the two jobs' combined results.

@@ -21,7 +21,7 @@ pytestmark = pytest.mark.integration
 def database_url() -> SecretStr:
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
-        pytest.skip("Set TEST_DATABASE_URL to run the PostgreSQL integration suite")
+        pytest.fail("Set TEST_DATABASE_URL to run the PostgreSQL integration suite")
     if make_url(url).database != "work_service_test":
         pytest.fail("TEST_DATABASE_URL must point to the disposable work_service_test database")
     with pytest.MonkeyPatch.context() as patch:

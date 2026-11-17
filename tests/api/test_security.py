@@ -3,37 +3,10 @@ from collections.abc import Iterator
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError
+from pydantic import BaseModel, ConfigDict, SecretStr
 
 from app.app_factory import create_app
 from app.core.config import Environment, Settings
-
-
-@pytest.mark.parametrize(
-    ("setting", "value"),
-    [
-        ("APP_DEBUG", "true"),
-        ("APP_ALLOWED_HOSTS", '["*.example.test"]'),
-        ("APP_CORS_ORIGINS", '["*"]'),
-    ],
-)
-def test_production_rejects_permissive_settings(
-    monkeypatch: pytest.MonkeyPatch, setting: str, value: str
-) -> None:
-    monkeypatch.setenv("APP_ENV", "prd")
-    monkeypatch.setenv("APP_ALLOWED_HOSTS", '["work.example.test"]')
-    monkeypatch.setenv(setting, value)
-
-    with pytest.raises(ValidationError, match=setting):
-        Settings()
-
-
-def test_production_requires_explicit_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_ENV", "prd")
-    monkeypatch.delenv("APP_ALLOWED_HOSTS", raising=False)
-
-    with pytest.raises(ValidationError, match="APP_ALLOWED_HOSTS"):
-        Settings()
 
 
 def test_production_requires_an_allowed_host_and_hides_docs() -> None:
