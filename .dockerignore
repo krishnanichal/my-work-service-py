@@ -1,0 +1,13 @@
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!src/**
+!alembic.ini
+!alembic/
+!alembic/**
+**/.env*
+**/__pycache__
+**/*.py[cod]

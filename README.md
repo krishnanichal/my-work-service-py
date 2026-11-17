@@ -21,6 +21,35 @@ uv run --locked --env-file .env uvicorn app.main:app --reload --port 8080 --no-a
 
 Open `http://127.0.0.1:8080/docs` for the dev API documentation. `GET /health/live` checks the process. `GET /health/ready` returns `503` until the service can read the migrated Users table.
 
+## Run in Docker
+
+Build and start the API on a loopback port. The image runs one Uvicorn worker as a non-root user and listens on `PORT`, which defaults to `8080`.
+
+```sh
+docker build -t my-work-service-py:local .
+docker run --rm -p 127.0.0.1:18080:8080 my-work-service-py:local
+```
+
+From a second terminal, run `curl -fsS http://127.0.0.1:18080/health/live`. For Users and readiness checks, start the local homelab Compose stack and attach the API to its `my-cloud-hub-local_default` network. Create `.env.container` with your existing Work database name and URL-encoded local password. Container-to-container connections use `postgres:5432`.
+
+```dotenv
+APP_ENV=dev
+APP_DATABASE_URL=postgresql://postgres:<LOCAL_POSTGRES_PASSWORD>@postgres:5432/<WORK_DATABASE_NAME>
+```
+
+The build uses a file allowlist. Supply secrets at runtime through `.env.container`, which Git ignores. If you add list settings such as `APP_ALLOWED_HOSTS`, write the JSON value without surrounding single quotes for Docker's env-file parser.
+
+Apply migrations once, then start the database-backed API and check `/health/ready` in a second terminal.
+
+```sh
+docker run --rm --network my-cloud-hub-local_default --env-file .env.container \
+  my-work-service-py:local alembic upgrade head
+docker run --rm --network my-cloud-hub-local_default --env-file .env.container \
+  -p 127.0.0.1:18080:8080 my-work-service-py:local
+```
+
+For a Cloud Run build, target `linux/amd64`. The container uses the same `PORT` setting for local and Cloud Run startup.
+
 ## Users API
 
 | Method and path | Behavior |
