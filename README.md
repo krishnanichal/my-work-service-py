@@ -16,7 +16,7 @@ Start PostgreSQL using `./local/compose up --wait` from the local `my-cloud-hub`
 
 ```sh
 uv run --locked --env-file .env alembic upgrade head
-uv run --locked --env-file .env uvicorn app.main:app --reload --port 8080 --no-access-log
+uv run --locked --env-file .env uvicorn app.main:app --reload --port 8080 --no-access-log --no-server-header
 ```
 
 Open `http://127.0.0.1:8080/docs` for the dev API documentation. `GET /health/live` checks the process. `GET /health/ready` returns `503` until the service can read the migrated Users table.
@@ -35,7 +35,11 @@ Handles are stored in lowercase. A duplicate handle returns `409` even when its 
 
 ## Configuration and errors
 
-`APP_ENV` accepts `dev` and `prd`. Production disables interactive API documentation and requires explicit trusted hosts. `.env.example` contains local defaults. Each application request receives a server-generated `X-Request-ID` and a JSON access log with the Cloud Logging `severity` field. Application errors use `application/problem+json` with a stable `code` and the same request ID.
+`APP_ENV` accepts `dev` and `prd`. Production disables interactive API documentation and requires explicit trusted hosts. `.env.example` contains local defaults.
+
+Application errors use `application/problem+json` with `message`, `status`, and a stable `code`. An error can include a short `detail` when it helps a caller correct the request. Dependency failures in the Users API return `503` with `service_unavailable`. Both environments return sanitized errors. Use the server-generated `X-Request-ID` response header to correlate errors with application logs.
+
+The documented startup command and VS Code launch configuration disable Uvicorn's server banner and access log. The application emits structured JSON with severity, request method, route template, status, duration, and request ID. Requests without a matched API route use `unmatched`. Unexpected request failures record an error type and request ID. Raw URLs, query strings, headers, request bodies, and exception messages stay out of these application request logs. Cloud Run collects its own request logs separately.
 
 ## Development workflow
 

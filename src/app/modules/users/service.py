@@ -8,7 +8,7 @@ from app.modules.users.repository import UserHandleConflict, UserRepository
 
 
 def user_not_found() -> AppError:
-    return AppError(HTTPStatus.NOT_FOUND, "user_not_found", "The requested user does not exist.")
+    return AppError(HTTPStatus.NOT_FOUND, "user_not_found")
 
 
 class UsersService:
@@ -30,7 +30,9 @@ class UsersService:
             return await self.repository.create(user)
         except UserHandleConflict as error:
             raise AppError(
-                HTTPStatus.CONFLICT, "user_handle_conflict", "Choose a different handle."
+                HTTPStatus.CONFLICT,
+                "user_handle_conflict",
+                public_detail="Choose a different handle.",
             ) from error
 
     async def update(self, user_id: UUID, display_name: str) -> User:

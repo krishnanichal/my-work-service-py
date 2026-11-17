@@ -33,7 +33,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title=APP_META.name,
         version=APP_META.version,
-        debug=config.debug,
         docs_url=None if production else "/docs",
         redoc_url=None if production else "/redoc",
         openapi_url=None if production else "/openapi.json",

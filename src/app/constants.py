@@ -35,4 +35,6 @@ DB_LIMITS: Final = DatabaseLimits()
 PAGINATION: Final = Pagination()
 REQUEST_ID_HEADER: Final = "X-Request-ID"
 PROBLEM_MEDIA_TYPE: Final = "application/problem+json"
+PROBLEM_RESPONSE_HEADERS: Final = frozenset({"allow", "retry-after", "www-authenticate"})
+UNMATCHED_ROUTE: Final = "unmatched"
 DEFAULT_MAX_REQUEST_BODY_BYTES: Final = 1_048_576

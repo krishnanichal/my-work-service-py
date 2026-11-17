@@ -3,12 +3,13 @@ from http import HTTPStatus
 from time import perf_counter
 from uuid import uuid4
 
+from fastapi.routing import APIRoute
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.constants import REQUEST_ID_HEADER
+from app.constants import REQUEST_ID_HEADER, UNMATCHED_ROUTE
 from app.core.errors import problem_response
 
 logger = logging.getLogger("app.http")
@@ -38,11 +39,12 @@ class RequestContextMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
+            route = scope.get("route")
             logger.info(
                 "http.request.completed",
                 extra={
                     "method": scope["method"],
-                    "path": scope["path"],
+                    "route": route.path_format if isinstance(route, APIRoute) else UNMATCHED_ROUTE,
                     "status_code": status_code,
                     "duration_ms": round((perf_counter() - started) * 1000, 3),
                     "request_id": request_id,
@@ -66,7 +68,6 @@ class RequestSizeLimitMiddleware:
                 Request(scope),
                 HTTPStatus.CONTENT_TOO_LARGE,
                 "request_too_large",
-                "The request body exceeds the configured size limit.",
             )
             await response(scope, receive, send)
             return

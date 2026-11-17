@@ -75,7 +75,11 @@ def test_user_lifecycle_persists_across_application_restarts(database_url: Secre
             client.delete(path),
         ):
             assert response.status_code == 404
-            assert response.json()["code"] == "user_not_found"
+            assert response.json() == {
+                "message": "Not Found",
+                "status": 404,
+                "code": "user_not_found",
+            }
 
 
 def test_concurrent_requests_cannot_create_case_variant_handles(database_url: SecretStr) -> None:
@@ -123,5 +127,9 @@ def test_bad_database_credentials_keep_liveness_and_return_safe_errors(
         unavailable = client.get("/api/v1/users")
 
     assert unavailable.status_code == 503
-    assert unavailable.json()["code"] == "database_unavailable"
+    assert unavailable.json() == {
+        "message": "Service Unavailable",
+        "status": 503,
+        "code": "service_unavailable",
+    }
     assert invalid_password not in unavailable.text

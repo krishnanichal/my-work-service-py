@@ -6,7 +6,14 @@
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
-      "args": ["app.main:app", "--reload", "--port", "8080", "--no-access-log"],
+      "args": [
+        "app.main:app",
+        "--reload",
+        "--port",
+        "8080",
+        "--no-access-log",
+        "--no-server-header"
+      ],
       "envFile": "${workspaceFolder}/.env",
       "subProcess": true,
       "justMyCode": true

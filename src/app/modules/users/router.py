@@ -16,11 +16,7 @@ router = APIRouter(prefix=Routes.USERS, tags=["users"])
 
 
 def database_unavailable() -> AppError:
-    return AppError(
-        HTTPStatus.SERVICE_UNAVAILABLE,
-        "database_unavailable",
-        "The user directory is temporarily unavailable.",
-    )
+    return AppError(HTTPStatus.SERVICE_UNAVAILABLE, "service_unavailable")
 
 
 async def get_users_service(request: Request) -> AsyncIterator[UsersService]:
