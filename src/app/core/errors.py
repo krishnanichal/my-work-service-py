@@ -7,43 +7,57 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from app.constants import PROBLEM_MEDIA_TYPE, REQUEST_ID_HEADER
+from app.constants import PROBLEM_MEDIA_TYPE, PROBLEM_RESPONSE_HEADERS, REQUEST_ID_HEADER
 
 logger = logging.getLogger(__name__)
+
+
+class AppError(Exception):
+    def __init__(self, status: HTTPStatus, code: str, *, public_detail: str | None = None) -> None:
+        super().__init__(code)
+        self.status = status
+        self.code = code
+        self.public_detail = public_detail
 
 
 def problem_response(
     request: Request,
     status: HTTPStatus,
     code: str,
-    detail: str,
+    *,
+    detail: str | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
-    request_id = request.state.request_id
+    body: dict[str, str | int] = {"message": status.phrase, "status": status.value, "code": code}
+    if detail is not None:
+        body["detail"] = detail
+    response_headers = {REQUEST_ID_HEADER: request.state.request_id}
+    if headers is not None:
+        response_headers.update(
+            (name, value)
+            for name, value in headers.items()
+            if name.lower() in PROBLEM_RESPONSE_HEADERS
+        )
     return JSONResponse(
-        {
-            "type": "about:blank",
-            "title": status.phrase,
-            "status": status.value,
-            "detail": detail,
-            "instance": request.url.path,
-            "code": code,
-            "request_id": request_id,
-        },
+        body,
         status_code=status.value,
         media_type=PROBLEM_MEDIA_TYPE,
-        headers={**(headers or {}), REQUEST_ID_HEADER: request_id},
+        headers=response_headers,
     )
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def handle_app_error(request: Request, error: AppError) -> JSONResponse:
+        return problem_response(request, error.status, error.code, detail=error.public_detail)
+
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(request: Request, _: RequestValidationError) -> JSONResponse:
         return problem_response(
             request,
-            HTTPStatus.UNPROCESSABLE_ENTITY,
+            HTTPStatus.UNPROCESSABLE_CONTENT,
             "request_validation_failed",
-            "One or more request fields are invalid.",
+            detail="Check the request fields and parameter formats.",
         )
 
     @app.exception_handler(HTTPException)
@@ -52,7 +66,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         code = (
             "request_too_large" if status is HTTPStatus.CONTENT_TOO_LARGE else status.name.lower()
         )
-        return problem_response(request, status, code, status.description, error.headers)
+        return problem_response(request, status, code, headers=error.headers)
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:
@@ -64,5 +78,4 @@ def register_exception_handlers(app: FastAPI) -> None:
             request,
             HTTPStatus.INTERNAL_SERVER_ERROR,
             "internal_server_error",
-            "The server could not complete the request.",
         )
