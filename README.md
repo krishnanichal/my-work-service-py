@@ -80,13 +80,13 @@ In Secret Manager, add a version of the existing `app-secrets-dev` bundle with o
 }
 ```
 
-During the first dev rollout, map the secret to `APP_SECRETS` with `--update-secrets="APP_SECRETS=app-secrets-dev:latest"`. Use the `cloudrun-runtime-dev` service identity, set `APP_ENV=dev` and `APP_ALLOWED_HOSTS` for the service hostnames, and attach Direct VPC egress to reach the VM. Coordinate Cloud Run environment settings with Terraform before the rollout so a later infrastructure apply preserves the mapping. [Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets)
+Apply the Work API dev runtime configuration in `my-cloud-hub` before the first application rollout. Terraform sets `APP_ENV=dev`, `APP_ALLOWED_HOSTS`, and the `APP_SECRETS` reference to `app-secrets-dev:latest` for `cloudrun-runtime-dev`. The deployment workflow sets Direct VPC egress on `default/default` with `private-ranges-only` so the service can reach the VM. [Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets) · [Direct VPC egress](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc)
 
 When `APP_SECRETS` is present, the API selects `WORK_API_DATABASE_URL` from the bundle and validates the runtime login and database against `APP_ENV`. Otherwise, it uses `APP_DATABASE_URL` for local development. Alembic always uses its own `APP_DATABASE_URL`. Keep the migration credential separate from the bundle mounted into the API.
 
 ## Development workflow
 
-Branch from `develop` for each feature and review the diff and local results before committing. Open the feature PR into `develop`. PRs targeting `develop` or `main`, and pushes to either branch, run the quality checks. The planned Cloud Run targets are `api-work-dev` from `develop` and `api-work-prd` from `main`, with local and dev validation before production promotion.
+Branch from `develop` for each feature and review the diff and local results before committing. Open the feature PR into `develop`. PRs targeting `develop` or `main` and pushes to `main` run the quality checks. A push to `develop` runs those same checks before deploying to the private `api-work-dev` Cloud Run service.
 
 ```sh
 uv run --locked ruff format --check .
@@ -110,3 +110,21 @@ uv run --locked pytest tests --cov --cov-report=term-missing
 ```
 
 GitHub Actions runs unit and API tests in `verify`, then provisions PostgreSQL for `integration`. It enforces the 80% coverage threshold on the two jobs' combined results.
+
+### Deploy and verify dev
+
+1. In `my-cloud-hub`, apply the Work API dev deployment identity, its `work-api-dev` Artifact Registry repository, and its Cloud Run runtime configuration. Apply the dev database migration and confirm the runtime role has access to `public.users`.
+2. Set `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT` in this repository's **Settings → Secrets and variables → Actions → Variables**. Use the identifiers from the infra output `work_api_dev_deployment_identity`.
+3. Merge the app PR into `develop`. The workflow builds the Linux AMD64 image, authenticates through Workload Identity Federation, pushes it to the dev registry, and updates Cloud Run by digest. The rollout waits for the new image to serve traffic. If traffic is pinned after a manual rollback, review the dev traffic assignment before restoring latest-revision routing.
+4. Run the authenticated proxy with your existing Cloud Run access. From a second terminal, check liveness and database readiness. Expect `{"status":"alive"}` and `{"status":"ready"}`.
+
+```sh
+gcloud run services proxy api-work-dev --project="$GCP_PROJECT_ID" --region=us-central1 --port=18080
+```
+
+```sh
+curl -fsS http://127.0.0.1:18080/health/live
+curl -fsS http://127.0.0.1:18080/health/ready
+```
+
+The Cloud Run rollout result confirms the revision is serving traffic. The readiness request confirms that the runtime identity and PostgreSQL login can read the migrated Users table. Keep the previous Secret Manager version available until this check passes.
